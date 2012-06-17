@@ -16,13 +16,15 @@ def get_collection(name):
     db = connection[DB]
     return db[name]
 
+@app.route("/")
+def welcome():
+    return "Welcome! (TODO: make this page)"
+
 @app.route("/ping/<install_id>")
 def ping(install_id):
     message = { '_id': ObjectId(install_id), 
                 'last_seen': datetime.utcnow(),
                 'remote_host': request.remote_addr,
-                #TODO: Client should specify remote port
-                'remote_port': DEFAULT_PORT,
                }
     coll = get_collection('installs')
     coll.update({'_id': message['_id']}, message, False)
@@ -36,6 +38,18 @@ def transfer_page(transfer_id):
     install = coll.find_one({'_id': transfer['install_id']})
     return flask.redirect(get_download_uri(transfer, install))
 
+@app.route("/download/<transfer_id>/confirm/<install_id>"):
+def confirm_transfer(transfer_id):
+    coll = get_collection('transfers')
+    transfer = coll.find_one({'_id': ObjectId(transfer_id)})
+    if transfer['install_id'] != install_id:
+        return dumps({'error': 'Not authorized'})
+    if transfer:
+        return dumps(transfer)
+    else:
+        return dumps({'error': 'Transfer not found'})
+    
+
 @app.route("/app/<install_id>/list")
 def list_files(install_id):
     coll = get_collection('installs')
@@ -44,12 +58,13 @@ def list_files(install_id):
 
 @app.route("/app/register", methods=["POST"])
 def register_install(transfer, install):
+    # TODO: Validate input
     coll = get_collection('installs')
     message = { '_id': ObjectId(), 
                 'last_seen': datetime.utcnow(),
                 'remote_host': request.remote_addr,
-                #TODO: Client should specify remote port
-                'remote_port': DEFAULT_PORT,
+                'remote_port': request.form['port'],
+                'user': request.form['user_id']
                }
     coll.insert(message)
     return dumps(message)
