@@ -8,7 +8,8 @@ from json import dumps
 from urllib2 import urlopen
 
 app = Flask(__name__)
-MONGO_HOST = os.environ.get("MONGO_HOST", None)
+MONGO_HOST = os.environ.get("MONGOLAB_URI")
+#MONGO_HOST = os.environ.get("MONGO_HOST")
 DB = os.environ.get("MONGO_DB", "file_transfer")
 connection = Connection(host=MONGO_HOST)
 
