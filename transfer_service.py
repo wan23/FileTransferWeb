@@ -1,14 +1,16 @@
-from flask import Flask, request, render_template
-from pymongo import Connection, objectid
-from pymongo.objectid import ObjectId
+from flask import Flask, request, render_template, redirect
+from pymongo import Connection
+from bson.objectid import ObjectId
 
+import os
 from datetime import datetime
 from json import dumps
 from urllib2 import urlopen
 
 app = Flask(__name__)
-connection = Connection()
-DB = file_transfer
+MONGO_HOST = os.environ.get("MONGO_HOST", None)
+DB = os.environ.get("MONGO_DB", "file_transfer")
+connection = Connection(host=MONGO_HOST)
 
 DEFAULT_PORT = 13462
 
@@ -30,16 +32,19 @@ def ping(install_id):
     coll.update({'_id': message['_id']}, message, False)
     return "OK"
 
+def get_download_uri():
+    return "huuuf"
+
 @app.route("/download/<transfer_id>")
 def transfer_page(transfer_id):
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     coll = get_collection('installs')
     install = coll.find_one({'_id': transfer['install_id']})
-    return flask.redirect(get_download_uri(transfer, install))
+    return redirect(get_download_uri(transfer, install))
 
-@app.route("/download/<transfer_id>/confirm/<install_id>"):
-def confirm_transfer(transfer_id):
+@app.route("/download/<transfer_id>/confirm/<install_id>")
+def confirm_transfer(transfer_id, install_id):
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     if transfer['install_id'] != install_id:
@@ -48,16 +53,15 @@ def confirm_transfer(transfer_id):
         return dumps(transfer)
     else:
         return dumps({'error': 'Transfer not found'})
-    
 
-@app.route("/app/<install_id>/list")
-def list_files(install_id):
-    coll = get_collection('installs')
-    install = coll.find_one({'_id': transfer['install_id']})
-    return flask.redirect(get_list_uri(install))
+#@app.route("/app/<install_id>/list")
+#def list_files(install_id):
+#    coll = get_collection('installs')
+#    install = coll.find_one({'_id': transfer['install_id']})
+#    return redirect(get_list_uri(install))
 
 @app.route("/app/register", methods=["POST"])
-def register_install(transfer, install):
+def register_install():
     # TODO: Validate input
     coll = get_collection('installs')
     message = { '_id': ObjectId(), 
@@ -69,10 +73,10 @@ def register_install(transfer, install):
     coll.insert(message)
     return dumps(message)
 
-def get_list_uri(install):
-    return "http://%s:%s/list" % (install['remote_host'], 
-                                      install['remote_port'],
-                                      transfer['path'])
+#def get_list_uri(install):
+#    return "http://%s:%s/list" % (install['remote_host'], 
+#                                      install['remote_port'],
+#                                      transfer['path'])
 
 def get_transfer_status(transfer):
     pass
@@ -89,7 +93,7 @@ def test_install_accessible(install):
     return False
         
 @app.route("/status/<transfer_id>")
-def status(transfer_id)
+def status(transfer_id):
     coll = get_collection('transfers')
     transfer = coll.find_one({'id': ObjectId(transfer_id)})
     if not transfer.get('status'):
@@ -109,4 +113,6 @@ def create_transfer(install_id, path):
     return dumps(transfer)
 
 if __name__ == '__main__':
-    app.run()
+    port = int(os.environ.get("PORT", DEFAULT_PORT))
+    print port
+    app.run(host='0.0.0.0', port=port)
