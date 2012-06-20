@@ -62,15 +62,22 @@ def confirm_transfer(transfer_id, install_id):
 #    install = coll.find_one({'_id': transfer['install_id']})
 #    return redirect(get_list_uri(install))
 
+def get_user(username):
+    # TODO: Check authentication for this first
+    coll = get_collection('users')
+    user = coll.find_one({'username': username})
+    return user
+
 @app.route("/app/register", methods=["POST"])
 def register_install():
     # TODO: Validate input
+    user = get_user(request.form['username'])
     coll = get_collection('installs')
     message = { '_id': ObjectId(), 
                 'last_seen': datetime.utcnow(),
                 'remote_host': request.remote_addr,
                 'remote_port': request.form['port'],
-                'user': request.form['user_id']
+                'user_id': user['_id']
                }
     coll.insert(message)
     return dumps({'install_id': message['_id']})
