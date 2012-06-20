@@ -12,8 +12,9 @@ MONGO_HOST = os.environ.get("MONGOLAB_URI")
 #MONGO_HOST = os.environ.get("MONGO_HOST")
 DB = os.environ.get("MONGO_DB", "file_transfer")
 connection = Connection(host=MONGO_HOST)
-
+CONFIG_FILE = "./config.json"
 DEFAULT_PORT = 13462
+config = {}
 
 def get_collection(name):
     db = connection[DB]
@@ -72,7 +73,7 @@ def register_install():
                 'user': request.form['user_id']
                }
     coll.insert(message)
-    return dumps(message)
+    return dumps({'install_id': message['_id']})
 
 #def get_list_uri(install):
 #    return "http://%s:%s/list" % (install['remote_host'], 
