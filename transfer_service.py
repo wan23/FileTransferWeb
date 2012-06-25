@@ -109,7 +109,7 @@ def test_install_accessible(install):
     return False
         
         
-@app.route("/user/login", "methods=[POST]")
+@app.route("/user/login", methods=["POST"])
 def login():
     coll = get_collection('users')
     # TODO: escape items sent to DB
@@ -123,7 +123,7 @@ def user_token(username, password):
     return md5().update(username + password + "MEH").digest()
 
 
-@app.route("/user/new", "methods=[POST]")
+@app.route("/user/new", methods=["POST"])
 def new_user():
     coll = get_collection('users')
     # TODO: Escape items sent to DB
