@@ -70,15 +70,16 @@ def get_user(username):
     return user
     
 def logged_in_user():
-    # TODO: Check authentication for this first
     coll = get_collection('users')
-    user = coll.find_one({'user_token': request.form})
+    user = coll.find_one({'user_token': request.form['user_token']})
     return user
 
 @app.route("/app/register", methods=["POST"])
 def register_install():
     # TODO: Validate input
     user = logged_in_user()
+    if not user:
+        return dumps({'error': "Unable to login"})
     coll = get_collection('installs')
     message = { '_id': ObjectId(), 
                 'last_seen': datetime.utcnow(),
