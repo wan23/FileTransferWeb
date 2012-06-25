@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from json import dumps
 from urllib2 import urlopen
+from hashlib import md5
 
 app = Flask(__name__)
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
@@ -67,11 +68,17 @@ def get_user(username):
     coll = get_collection('users')
     user = coll.find_one({'username': username})
     return user
+    
+def logged_in_user():
+    # TODO: Check authentication for this first
+    coll = get_collection('users')
+    user = coll.find_one({'user_token': request.form})
+    return user
 
 @app.route("/app/register", methods=["POST"])
 def register_install():
     # TODO: Validate input
-    user = get_user(request.form['username'])
+    user = logged_in_user()
     coll = get_collection('installs')
     message = { '_id': ObjectId(), 
                 'last_seen': datetime.utcnow(),
@@ -101,10 +108,45 @@ def test_install_accessible(install):
         return False
     return False
         
+        
+@app.route("/user/login", "methods=[POST]")
+def login():
+    coll = get_collection('users')
+    # TODO: escape items sent to DB
+    user = coll.find_one({'username': request.form.get('username'),
+                          'password': request.form.get('password')})
+    if user:
+        return dumps({'user_token': user['token']})        
+    return dumps({'error': "User not found"})
+
+def user_token(username, password):
+    return md5().update(username + password + "MEH").digest()
+
+
+@app.route("/user/new", "methods=[POST]")
+def new_user():
+    coll = get_collection('users')
+    # TODO: Escape items sent to DB
+    user = coll.find_one({'username': request.form['username']})
+    if user:
+        return dumps({"error": "Username already taken"})
+    # TODO: Verify form parameters
+    username = request.form.get('username')
+    password = request.form.get('password')
+    if username and password:
+        user = {'username': username,
+                'password': password,
+                'token': user_token(username, password)
+                }
+        coll.insert(user)
+    else:
+        return "Unable to create user"
+    return login()
+    
 @app.route("/status/<transfer_id>")
 def status(transfer_id):
     coll = get_collection('transfers')
-    transfer = coll.find_one({'id': ObjectId(transfer_id)})
+    transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     if not transfer.get('status'):
         status = get_transfer_status(transfer)
         transfer['status'] = status
