@@ -127,23 +127,26 @@ def user_token(username, password):
 
 @app.route("/user/new", methods=["POST"])
 def new_user():
-    coll = get_collection('users')
-    # TODO: Escape items sent to DB
-    user = coll.find_one({'username': request.form['username']})
-    if user:
-        return dumps({"error": "Username already taken"})
-    # TODO: Verify form parameters
-    username = request.form.get('username')
-    password = request.form.get('password')
-    if username and password:
-        user = {'username': username,
-                'password': password,
-                'token': user_token(username, password)
-                }
-        coll.insert(user)
-    else:
-        return "Unable to create user"
-    return dumps({'user_token': user['token']}) 
+    try:
+        coll = get_collection('users')
+        # TODO: Escape items sent to DB
+        user = coll.find_one({'username': request.form['username']})
+        if user:
+            return dumps({"error": "Username already taken"})
+        # TODO: Verify form parameters
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username and password:
+            user = {'username': username,
+                    'password': password,
+                    'token': user_token(username, password)
+                    }
+            coll.insert(user)
+        else:
+            return "Unable to create user"
+        return dumps({'user_token': user['token']}) 
+    except Exception as e:
+        return "Exception! " + e
     
 @app.route("/status/<transfer_id>")
 def status(transfer_id):
