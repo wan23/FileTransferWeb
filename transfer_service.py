@@ -7,6 +7,7 @@ from datetime import datetime
 from json import dumps
 from urllib2 import urlopen
 from hashlib import md5
+from base64 import b64encode
 
 app = Flask(__name__)
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
@@ -123,7 +124,7 @@ def login():
 def user_token(username, password):
     d = md5()
     d.update(username)
-    d.update(password)
+    d.update(b64encode(password))
     d.update("MEH")
     return d.digest()
 
