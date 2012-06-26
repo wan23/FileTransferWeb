@@ -122,12 +122,14 @@ def login():
 
 def user_token(username, password):
     d = md5()
-    d.update(username + password + "MEH")
+    d.update(username)
+    d.update(password)
+    d.update("MEH")
     return d.digest()
 
 @app.route("/user/new", methods=["POST"])
 def new_user():
-    try:
+#    try:
         coll = get_collection('users')
         # TODO: Escape items sent to DB
         user = coll.find_one({'username': request.form.get('username')})
@@ -145,10 +147,10 @@ def new_user():
         else:
             return "Unable to create user"
         return dumps({'user_token': user['token']}) 
-    except Exception as e:
-        msg = "Exception! " + str(e)
-        print msg
-        return msg
+#    except Exception as e:
+#        msg = "Exception! " + str(e)
+#        print msg
+#        return msg
     
 @app.route("/status/<transfer_id>")
 def status(transfer_id):
