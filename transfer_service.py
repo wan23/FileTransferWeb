@@ -130,7 +130,7 @@ def new_user():
     try:
         coll = get_collection('users')
         # TODO: Escape items sent to DB
-        user = coll.find_one({'username': request.form['username']})
+        user = coll.find_one({'username': request.form.get('username')})
         if user:
             return dumps({"error": "Username already taken"})
         # TODO: Verify form parameters
@@ -146,7 +146,9 @@ def new_user():
             return "Unable to create user"
         return dumps({'user_token': user['token']}) 
     except Exception as e:
-        return "Exception! " + e
+        msg = "Exception! " + e
+        print msg
+        return msg
     
 @app.route("/status/<transfer_id>")
 def status(transfer_id):
