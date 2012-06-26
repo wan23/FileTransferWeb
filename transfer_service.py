@@ -121,8 +121,9 @@ def login():
     return dumps({'error': "User not found"})
 
 def user_token(username, password):
-    return md5().update(username + password + "MEH").digest()
-
+    d = md5()
+    d.update(username + password + "MEH")
+    return d.digest()
 
 @app.route("/user/new", methods=["POST"])
 def new_user():
