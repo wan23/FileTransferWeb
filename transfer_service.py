@@ -143,7 +143,7 @@ def new_user():
         coll.insert(user)
     else:
         return "Unable to create user"
-    return login()
+    return dumps({'user_token': user['token']}) 
     
 @app.route("/status/<transfer_id>")
 def status(transfer_id):
