@@ -146,7 +146,7 @@ def new_user():
             return "Unable to create user"
         return dumps({'user_token': user['token']}) 
     except Exception as e:
-        msg = "Exception! " + e
+        msg = "Exception! " + str(e)
         print msg
         return msg
     
