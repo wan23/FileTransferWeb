@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect
+from flask import Flask, request, redirect
 from pymongo import Connection
 from bson.objectid import ObjectId
 
@@ -7,7 +7,6 @@ from datetime import datetime
 from json import dumps
 from urllib2 import urlopen
 from hashlib import md5
-from base64 import b64encode
 
 app = Flask(__name__)
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
@@ -15,7 +14,7 @@ MONGO_HOST = os.environ.get("MONGOLAB_URI")
 DB = os.environ.get("MONGO_DB", "file_transfer")
 connection = Connection(host=MONGO_HOST)
 CONFIG_FILE = "./config.json"
-DEFAULT_PORT = 13462
+DEFAULT_PORT = 13463
 config = {}
 
 def get_collection(name):
@@ -72,7 +71,7 @@ def get_user(username):
     
 def logged_in_user():
     coll = get_collection('users')
-    user = coll.find_one({'user_token': request.form['user_token']})
+    user = coll.find_one({'token': request.form['user_token']})
     return user
 
 @app.route("/app/register", methods=["POST"])
@@ -89,7 +88,7 @@ def register_install():
                 'user_id': user['_id']
                }
     coll.insert(message)
-    return dumps({'install_id': message['_id']})
+    return dumps({'install_id': str(message['_id'])})
 
 #def get_list_uri(install):
 #    return "http://%s:%s/list" % (install['remote_host'], 
@@ -124,9 +123,9 @@ def login():
 def user_token(username, password):
     d = md5()
     d.update(username)
-    d.update(b64encode(password))
+    d.update(password)
     d.update("MEH")
-    return d.digest()
+    return d.hexdigest()
 
 @app.route("/user/new", methods=["POST"])
 def new_user():
