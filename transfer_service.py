@@ -34,6 +34,10 @@ def ping(install_id):
     coll = get_collection('installs')
     coll.update({'_id': message['_id']}, message, False)
     return "OK"
+    
+def get_transfers_for_install(install_id):
+	# get them!
+	pass
 
 def get_download_uri():
     return "huuuf"
@@ -152,7 +156,7 @@ def new_user():
 #        print msg
 #        return msg
     
-@app.route("/status/<transfer_id>")
+@app.route("/transfer/<transfer_id>/status")
 def status(transfer_id):
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
@@ -161,7 +165,7 @@ def status(transfer_id):
         transfer['status'] = status
     return dumps(transfer or {})
 
-@app.route("/transfer/<install_id>/<path:path>")
+@app.route("/transfer/new/<install_id>/<path:path>")
 def create_transfer(install_id, path):
     coll = get_collection('installs')
     install = coll.find_one({'id': install_id})
