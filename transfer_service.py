@@ -36,8 +36,9 @@ def ping(install_id):
     return "OK"
     
 def get_transfers_for_install(install_id):
-	# get them!
-	pass
+	coll = get_collection('transfers')
+    transfers = list(coll.find({'install_id': ObjectId(install_id)}))
+    return transfers
 
 def get_download_uri():
     return "huuuf"
