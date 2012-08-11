@@ -25,23 +25,27 @@ def get_collection(name):
 def welcome():
     return "Welcome! (TODO: make this page)"
 
+def update_last_seen(install_id, remote_host):
+	message = { '_id': ObjectId(install_id), 
+                'last_seen': datetime.utcnow(),
+	            'remote_host': remote_host, }
+	coll = get_collection('installs')
+	coll.update({'_id': message['_id']}, message, False)
+
 @app.route("/ping/<install_id>")
 def ping(install_id):
-    message = { '_id': ObjectId(install_id), 
-                'last_seen': datetime.utcnow(),
-                'remote_host': request.remote_addr,
-               }
-    coll = get_collection('installs')
-    coll.update({'_id': message['_id']}, message, False)
-    return "OK"
+    update_last_seen(install_id, request.remote_addr)
+    return dumps({'status': "OK", 'command': 'test'})
     
 def get_transfers_for_install(install_id):
 	coll = get_collection('transfers')
-    transfers = list(coll.find({'install_id': ObjectId(install_id)}))
-    return transfers
+	transfers = list(coll.find({'install_id': ObjectId(install_id)}))
+	return transfers
 
-def get_download_uri():
-    return "huuuf"
+def get_download_uri(user_id, file_hash):
+    #TODO: The time the url lasts for should be based on the user somehow
+    return self.s3_manager.get_download_url(user_id, file_hash, 24 * 60 * 60)
+    
 
 @app.route("/download/<transfer_id>")
 def transfer_page(transfer_id):
@@ -165,17 +169,28 @@ def status(transfer_id):
         status = get_transfer_status(transfer)
         transfer['status'] = status
     return dumps(transfer or {})
+    
+@app.route("/transfer/<transfer_id>/upload_started", methods=['POST'])
+def status(transfer_id):
+	# TODO: Should require auth
+    coll = get_collection('transfers')
+    transfer = coll.find_one({'_id': ObjectId(transfer_id)})
+    transfer['status'] = 'uploading'
+    coll.update(transfer)
+    return dumps({'status': 'OK'})
 
-@app.route("/transfer/new/<install_id>/<path:path>")
-def create_transfer(install_id, path):
+@app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
+def create_transfer(install_id, file_hash):
     coll = get_collection('installs')
     install = coll.find_one({'id': install_id})
     if not install:
         return {'error': 'Unable to find install'}
     transfer_id = ObjectId()
-    transfer = {'_id': transfer_id, 'path': path, 'install_id': install_id}
+    transfer = {'_id': transfer_id, 'file_hash': file_hash, 'install_id': install_id,
+    	        'created': datetime.now(), 'status': 'new'}
     coll.insert(transfer)
     return dumps(transfer)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", DEFAULT_PORT))
