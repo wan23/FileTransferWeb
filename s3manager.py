@@ -14,14 +14,14 @@ class S3Manager:
     self.conn = S3Connection(ACCESS_KEY, SECRET_KEY)
     self.bucket = Bucket(self.conn, BUCKET)
 
-  def get_key(self, user_id, file_hash):
-    return Key(self.bucket, "%s/%s" % (user_id, file_hash))
+  def get_key(self, install_id, file_hash):
+    return Key(self.bucket, "%s/%s" % (install_id, file_hash))
 
-  def get_upload_url(self, user_id, file_hash, expires):
-    k = self.get_key(user_id, file_hash)
+  def get_upload_url(self, install_id, file_hash, expires):
+    k = self.get_key(install_id, file_hash)
     return k.generate_url(expires, method='POST')
 
-  def get_download_url(self, user_id, file_hash, expires):
-    k = self.get_key(user_id, file_hash)
+  def get_download_url(self, install_id, file_hash, expires):
+    k = self.get_key(install_id, file_hash)
     return k.generate_url(expires, method='GET')
 

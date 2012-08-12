@@ -15,7 +15,7 @@ DB = os.environ.get("MONGO_DB", "file_transfer")
 connection = Connection(host=MONGO_HOST)
 CONFIG_FILE = "./config.json"
 DEFAULT_PORT = 13463
-config = {}
+UPLOAD_TIME_LIMIT = 60 * 60 * 24
 
 def get_collection(name):
     db = connection[DB]
@@ -83,7 +83,7 @@ def logged_in_user():
     user = coll.find_one({'token': request.form['user_token']})
     return user
 
-@app.route("/app/register", methods=["POST"])
+@app.route("/install/register", methods=["POST"])
 def register_install():
     # TODO: Validate input
     user = logged_in_user()
@@ -170,24 +170,28 @@ def status(transfer_id):
         transfer['status'] = status
     return dumps(transfer or {})
     
-@app.route("/transfer/<transfer_id>/upload_started", methods=['POST'])
+@app.route("/transfer/<transfer_id>/start_upload", methods=['POST'])
 def status(transfer_id):
 	# TODO: Should require auth
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     transfer['status'] = 'uploading'
     coll.update(transfer)
-    return dumps({'status': 'OK'})
+    url = s3_manager.get_upload_url(transfer_id, transfer['file_hash'], UPLOAD_TIME_LIMIT)
+    return dumps({'status': 'OK', 'url': url})
 
 @app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
 def create_transfer(install_id, file_hash):
+	user = logged_in_user()
     coll = get_collection('installs')
     install = coll.find_one({'id': install_id})
-    if not install:
+    if not install or user['_id'] != install['_id']:
         return {'error': 'Unable to find install'}
+    
     transfer_id = ObjectId()
     transfer = {'_id': transfer_id, 'file_hash': file_hash, 'install_id': install_id,
-    	        'created': datetime.now(), 'status': 'new'}
+    	        'created': datetime.now(), 'status': 'new', 
+    	        'user_id': str(install['user_id'])}
     coll.insert(transfer)
     return dumps(transfer)
 
