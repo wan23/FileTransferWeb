@@ -1,10 +1,11 @@
 from flask import Flask, request, redirect
 from pymongo import Connection
 from bson.objectid import ObjectId
+from s3manager import S3Manager
 
 import os
 from datetime import datetime
-from json import dumps
+from json import dumps, loads
 from urllib2 import urlopen
 from hashlib import md5
 
@@ -16,7 +17,7 @@ connection = Connection(host=MONGO_HOST)
 CONFIG_FILE = "./config.json"
 DEFAULT_PORT = 13463
 UPLOAD_TIME_LIMIT = 60 * 60 * 24
-
+S3_MANAGER = S3Manager()
 def get_collection(name):
     db = connection[DB]
     return db[name]
@@ -24,6 +25,7 @@ def get_collection(name):
 @app.route("/")
 def welcome():
     return "Welcome! (TODO: make this page)"
+    
 
 def update_last_seen(install_id, remote_host):
 	message = { '_id': ObjectId(install_id), 
@@ -44,21 +46,25 @@ def get_transfers_for_install(install_id):
 
 def get_download_uri(user_id, file_hash):
     #TODO: The time the url lasts for should be based on the user somehow
-    return self.s3_manager.get_download_url(user_id, file_hash, 24 * 60 * 60)
+    return S3_MANAGER.get_download_url(user_id, file_hash, 24 * 60 * 60)
     
+def get_install(install_id):
+    coll = get_collection('installs')
+    return coll.find_one({'_id': ObjectId(install_id)})
+    
+def get_transfer(transfer_id):
+	coll = get_collection('transfers')
+	return coll.find_one({'_id': ObjectId(transfer_id)})
 
 @app.route("/download/<transfer_id>")
 def transfer_page(transfer_id):
-    coll = get_collection('transfers')
-    transfer = coll.find_one({'_id': ObjectId(transfer_id)})
-    coll = get_collection('installs')
-    install = coll.find_one({'_id': transfer['install_id']})
+    transfer = get_transfer(transfer_id)
+    install = get_install(transfer['install_id'])
     return redirect(get_download_uri(transfer, install))
 
 @app.route("/download/<transfer_id>/confirm/<install_id>")
 def confirm_transfer(transfer_id, install_id):
-    coll = get_collection('transfers')
-    transfer = coll.find_one({'_id': ObjectId(transfer_id)})
+    transfer = get_transfer(transfer_id)
     if transfer['install_id'] != install_id:
         return dumps({'error': 'Not authorized'})
     if transfer:
@@ -66,11 +72,6 @@ def confirm_transfer(transfer_id, install_id):
     else:
         return dumps({'error': 'Transfer not found'})
 
-#@app.route("/app/<install_id>/list")
-#def list_files(install_id):
-#    coll = get_collection('installs')
-#    install = coll.find_one({'_id': transfer['install_id']})
-#    return redirect(get_list_uri(install))
 
 def get_user(username):
     # TODO: Check authentication for this first
@@ -90,19 +91,32 @@ def register_install():
     if not user:
         return dumps({'error': "Unable to login"})
     coll = get_collection('installs')
-    message = { '_id': ObjectId(), 
+    install_id = ObjectId()
+    message = { '_id': install_id, 
                 'last_seen': datetime.utcnow(),
                 'remote_host': request.remote_addr,
                 'remote_port': request.form['port'],
-                'user_id': user['_id']
+                'user_id': user['_id'],
+                'file_collection': 'files_' + str(install_id)
                }
     coll.insert(message)
     return dumps({'install_id': str(message['_id'])})
 
-#def get_list_uri(install):
-#    return "http://%s:%s/list" % (install['remote_host'], 
-#                                      install['remote_port'],
-#                                      transfer['path'])
+@app.route("/install/<install_id>/files", methods=["POST"])
+def handle_file_list(install_id):
+    # TODO: Validate input
+    user = logged_in_user()
+    if not user:
+        return dumps({'status': 'error', 'error': "Need to login"})
+    
+    listing = loads(request.form['files'])
+    install = get_install(install_id)
+    install['file_listing'] = listing
+       
+    coll = get_collection('installs')
+    coll.update(install)
+    return dumps({'status': 'OK'})
+
 
 def get_transfer_status(transfer):
     pass
@@ -171,27 +185,29 @@ def status(transfer_id):
     return dumps(transfer or {})
     
 @app.route("/transfer/<transfer_id>/start_upload", methods=['POST'])
-def status(transfer_id):
+def start_upload(transfer_id):
 	# TODO: Should require auth
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     transfer['status'] = 'uploading'
     coll.update(transfer)
-    url = s3_manager.get_upload_url(transfer_id, transfer['file_hash'], UPLOAD_TIME_LIMIT)
+    url = S3_MANAGER.get_upload_url(transfer_id, transfer['file_hash'], UPLOAD_TIME_LIMIT)
     return dumps({'status': 'OK', 'url': url})
 
 @app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
 def create_transfer(install_id, file_hash):
-	user = logged_in_user()
+    user = logged_in_user()
     coll = get_collection('installs')
     install = coll.find_one({'id': install_id})
     if not install or user['_id'] != install['_id']:
         return {'error': 'Unable to find install'}
     
     transfer_id = ObjectId()
-    transfer = {'_id': transfer_id, 'file_hash': file_hash, 'install_id': install_id,
+    transfer = {'_id': transfer_id, 'file_hash': file_hash,
+    		    'install_id': ObjectId(install_id),
     	        'created': datetime.now(), 'status': 'new', 
-    	        'user_id': str(install['user_id'])}
+    	        'user_id': install['user_id'],
+    	       }
     coll.insert(transfer)
     return dumps(transfer)
 

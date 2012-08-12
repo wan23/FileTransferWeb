@@ -1,5 +1,5 @@
 import os
-from boto.s3.connection import Location, S3Connection
+from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from boto.s3.bucket import Bucket
 
