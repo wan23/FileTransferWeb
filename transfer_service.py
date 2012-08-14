@@ -25,23 +25,33 @@ def get_collection(name):
 @app.route("/")
 def welcome():
     return "Welcome! (TODO: make this page)"
+
     
-
 def update_last_seen(install_id, remote_host):
-	message = { '_id': ObjectId(install_id), 
-                'last_seen': datetime.utcnow(),
-	            'remote_host': remote_host, }
-	coll = get_collection('installs')
-	coll.update({'_id': message['_id']}, message, False)
+    install = get_install(install_id)
+    install.update({'last_seen': datetime.utcnow(),
+	                'remote_host': remote_host,
+	                'user_id': logged_in_user()['_id']})
+    coll = get_collection('installs')
+    coll.save(install)
 
-@app.route("/ping/<install_id>")
+@app.route("/ping/<install_id>", methods=["POST"])
 def ping(install_id):
     update_last_seen(install_id, request.remote_addr)
-    return dumps({'status': "OK", 'command': 'test'})
+    transfers = get_transfers_for_install(install_id)
+    ret = {'status': "OK"}
+    
+    if transfers:
+    	files = [{'transfer_id': str(t['_id']), 'file_hash': t['file_hash']} for t in transfers]
+    	ret.update({'command': 'get_file', 'transfers': files})
+    else:
+    	ret.update({'command': 'test'})
+    	
+    return dumps(ret)
     
 def get_transfers_for_install(install_id):
 	coll = get_collection('transfers')
-	transfers = list(coll.find({'install_id': ObjectId(install_id)}))
+	transfers = list(coll.find({'install_id': ObjectId(install_id), 'status': 'new'}))
 	return transfers
 
 def get_download_uri(user_id, file_hash):
@@ -109,15 +119,24 @@ def handle_file_list(install_id):
     if not user:
         return dumps({'status': 'error', 'error': "Need to login"})
     
-    listing = loads(request.form['files'])
+    listing = loads(request.form['file_list'])
     install = get_install(install_id)
-    install['file_listing'] = listing
+    install['file_listing'] = listing['files']
        
     coll = get_collection('installs')
-    coll.update(install)
+    coll.save(install)
     return dumps({'status': 'OK'})
 
-
+@app.route("/install/<install_id>/files", methods=["GET"])
+def get_file_list(install_id):
+	# TODO: verify auth
+	install = get_install(install_id)
+	if not install:
+		return dumps({'status': 'Error', 'error': 'Install not found'})
+	listing = install.get('file_listing', [])
+	return dumps({'status': 'OK', 'files': listing})
+	
+	
 def get_transfer_status(transfer):
     pass
 
@@ -190,26 +209,32 @@ def start_upload(transfer_id):
     coll = get_collection('transfers')
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     transfer['status'] = 'uploading'
-    coll.update(transfer)
+    coll.save(transfer)
     url = S3_MANAGER.get_upload_url(transfer_id, transfer['file_hash'], UPLOAD_TIME_LIMIT)
     return dumps({'status': 'OK', 'url': url})
 
 @app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
 def create_transfer(install_id, file_hash):
     user = logged_in_user()
+    print user
     coll = get_collection('installs')
-    install = coll.find_one({'id': install_id})
-    if not install or user['_id'] != install['_id']:
-        return {'error': 'Unable to find install'}
-    
+    print coll
+    install = coll.find_one({'_id': ObjectId(install_id)})
+    print dict((k, v) for k, v in install.iteritems() if k != 'file_listing')
+    if not install: # or user['_id'] != install['user_id']:
+    	print str(user['_id']) + '!=' + str(install['user_id'])
+        return dumps({'error': 'Unable to find install'})
+    #print install
     transfer_id = ObjectId()
     transfer = {'_id': transfer_id, 'file_hash': file_hash,
     		    'install_id': ObjectId(install_id),
     	        'created': datetime.now(), 'status': 'new', 
-    	        'user_id': install['user_id'],
+    	        'user_id': install.get('user_id'),
     	       }
+    print transfer
+    coll = get_collection('transfers')
     coll.insert(transfer)
-    return dumps(transfer)
+    return dumps({'status': 'OK', 'transfer_id': str(transfer_id)})
 
 
 if __name__ == '__main__':
