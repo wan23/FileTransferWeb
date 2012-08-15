@@ -17,9 +17,14 @@ class S3Manager:
   def get_key(self, install_id, file_hash):
     return Key(self.bucket, "%s/%s" % (install_id, file_hash))
 
-  def get_upload_url(self, install_id, file_hash, expires):
-    k = self.get_key(install_id, file_hash)
-    return k.generate_url(expires, method='POST')
+  def get_upload_url(self, transfer, expires):
+    print transfer
+    k = self.get_key(str(transfer['install_id']), transfer['file_hash'])
+    headers = None
+    if transfer['file']['mime_type']:
+    	headers = {'Content-Type':  transfer['file']['mime_type']}
+    	print headers
+    return k.generate_url(expires, method='PUT', headers=headers)
 
   def get_download_url(self, install_id, file_hash, expires):
     k = self.get_key(install_id, file_hash)

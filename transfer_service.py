@@ -17,6 +17,7 @@ connection = Connection(host=MONGO_HOST)
 CONFIG_FILE = "./config.json"
 DEFAULT_PORT = 13463
 UPLOAD_TIME_LIMIT = 60 * 60 * 24
+DOWNLOAD_TIME_LIMIT = 60 * 60 * 24
 S3_MANAGER = S3Manager()
 def get_collection(name):
     db = connection[DB]
@@ -65,23 +66,6 @@ def get_install(install_id):
 def get_transfer(transfer_id):
 	coll = get_collection('transfers')
 	return coll.find_one({'_id': ObjectId(transfer_id)})
-
-@app.route("/download/<transfer_id>")
-def transfer_page(transfer_id):
-    transfer = get_transfer(transfer_id)
-    install = get_install(transfer['install_id'])
-    return redirect(get_download_uri(transfer, install))
-
-@app.route("/download/<transfer_id>/confirm/<install_id>")
-def confirm_transfer(transfer_id, install_id):
-    transfer = get_transfer(transfer_id)
-    if transfer['install_id'] != install_id:
-        return dumps({'error': 'Not authorized'})
-    if transfer:
-        return dumps(transfer)
-    else:
-        return dumps({'error': 'Transfer not found'})
-
 
 def get_user(username):
     # TODO: Check authentication for this first
@@ -210,7 +194,7 @@ def start_upload(transfer_id):
     transfer = coll.find_one({'_id': ObjectId(transfer_id)})
     transfer['status'] = 'uploading'
     coll.save(transfer)
-    url = S3_MANAGER.get_upload_url(transfer_id, transfer['file_hash'], UPLOAD_TIME_LIMIT)
+    url = S3_MANAGER.get_upload_url(transfer, UPLOAD_TIME_LIMIT)
     return dumps({'status': 'OK', 'url': url})
 
 @app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
@@ -220,22 +204,48 @@ def create_transfer(install_id, file_hash):
     coll = get_collection('installs')
     print coll
     install = coll.find_one({'_id': ObjectId(install_id)})
-    print dict((k, v) for k, v in install.iteritems() if k != 'file_listing')
+    #print dict((k, v) for k, v in install.iteritems() if k != 'file_listing')
+    #print install
     if not install: # or user['_id'] != install['user_id']:
     	print str(user['_id']) + '!=' + str(install['user_id'])
         return dumps({'error': 'Unable to find install'})
-    #print install
+    # TODO: Find a better way to do this
+    file = [f for f in install['file_listing'] if f['hash'] == file_hash]
+    if file:
+    	file = file[0]
+    
+   # print install
     transfer_id = ObjectId()
     transfer = {'_id': transfer_id, 'file_hash': file_hash,
     		    'install_id': ObjectId(install_id),
     	        'created': datetime.now(), 'status': 'new', 
     	        'user_id': install.get('user_id'),
+    	        'file': file
     	       }
     print transfer
     coll = get_collection('transfers')
     coll.insert(transfer)
     return dumps({'status': 'OK', 'transfer_id': str(transfer_id)})
 
+@app.route("/transfer/<transfer_id>/download")
+def transfer_page(transfer_id):
+    transfer = get_transfer(transfer_id)
+    if transfer:
+        return redirect(S3_MANAGER.get_download_url(str(transfer['install_id']), 
+                                                    transfer['file_hash'],
+                                                    DOWNLOAD_TIME_LIMIT))
+    else:
+        return dumps({'status': 'error', 'error': 'Transfer not found'})
+
+@app.route("/download/<transfer_id>/confirm/<install_id>")
+def confirm_transfer(transfer_id, install_id):
+    transfer = get_transfer(transfer_id)
+    if transfer['install_id'] != install_id:
+        return dumps({'error': 'Not authorized'})
+    if transfer:
+        return dumps(transfer)
+    else:
+        return dumps({'error': 'Transfer not found'})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", DEFAULT_PORT))
