@@ -227,6 +227,14 @@ def create_transfer(install_id, file_hash):
     coll.insert(transfer)
     return dumps({'status': 'OK', 'transfer_id': str(transfer_id)})
 
+@app.route("/transfer/<transfer_id>/done")
+def transfer_page(transfer_id):
+    # TODO: Should require auth
+    transfer = get_transfer(transfer_id)
+    transfer['status'] = 'upload_complete'
+    coll.save(transfer)
+    return dumps({'status': 'OK'})
+        
 @app.route("/transfer/<transfer_id>/download")
 def transfer_page(transfer_id):
     transfer = get_transfer(transfer_id)
