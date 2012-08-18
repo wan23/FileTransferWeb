@@ -1,0 +1,15 @@
+Hi {{ name }},
+
+Your friend {{ sender_name }} has sent you a file using SendFileEasy.com. 
+
+Your file ({{ file_name }}) can be downloaded at:
+{{file_url}}
+
+This download link will expire in {{ file_expiration }}.
+
+Only download this file if you know {{ sender_name }}. If you received this message in error, please DO NOT download the file, and delete this email immediately.
+
+Thanks from SendFileEasy.com - the easiest way to send stuff to your friends.
+
+Click below to unsubscribe from all future SendFileEasy mail:
+%unsubscribe_url%
