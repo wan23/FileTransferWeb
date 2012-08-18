@@ -9,6 +9,8 @@ from json import dumps, loads
 from urllib2 import urlopen
 from hashlib import md5
 
+from emailsender import send_file_received_email
+
 app = Flask(__name__)
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
 #MONGO_HOST = os.environ.get("MONGO_HOST")
@@ -67,12 +69,16 @@ def get_transfer(transfer_id):
 	coll = get_collection('transfers')
 	return coll.find_one({'_id': ObjectId(transfer_id)})
 
-def get_user(username):
+def get_user_by_name(username):
     # TODO: Check authentication for this first
     coll = get_collection('users')
     user = coll.find_one({'username': username})
     return user
-    
+
+def get_user(user_id):
+    coll = get_collection('users')
+    return coll.find_one({'_id': ObjectId(user_id)})
+
 def logged_in_user():
     coll = get_collection('users')
     user = coll.find_one({'token': request.form['user_token']})
@@ -197,9 +203,14 @@ def start_upload(transfer_id):
     url = S3_MANAGER.get_upload_url(transfer, UPLOAD_TIME_LIMIT)
     return dumps({'status': 'OK', 'url': url})
 
-@app.route("/transfer/new/<install_id>/<file_hash>", methods=['POST'])
-def create_transfer(install_id, file_hash):
+
+@app.route("/transfer/new", methods=['POST'])
+def create_transfer():
     user = logged_in_user()
+    install_id = request.form.get('install_id')
+    file_hash = request.form.get('file_hash')
+    recipient_email = request.form.get('recipient_email')
+    recipient_name = request.form.get('recipient_name')
     print user
     coll = get_collection('installs')
     print coll
@@ -213,37 +224,51 @@ def create_transfer(install_id, file_hash):
     file = [f for f in install['file_listing'] if f['hash'] == file_hash]
     if file:
     	file = file[0]
-    
    # print install
     transfer_id = ObjectId()
     transfer = {'_id': transfer_id, 'file_hash': file_hash,
     		    'install_id': ObjectId(install_id),
     	        'created': datetime.now(), 'status': 'new', 
     	        'user_id': install.get('user_id'),
-    	        'file': file
+    	        'file': file,
+    	        'recipient_email': recipient_email,
+    	        'recipient_name': recipient_name,
     	       }
     print transfer
     coll = get_collection('transfers')
     coll.insert(transfer)
     return dumps({'status': 'OK', 'transfer_id': str(transfer_id)})
 
-@app.route("/transfer/<transfer_id>/done")
-def transfer_page(transfer_id):
+
+@app.route("/transfer/<transfer_id>/done", methods=['POST'])
+def transfer_done(transfer_id):
     # TODO: Should require auth
     transfer = get_transfer(transfer_id)
+    user = get_user(transfer['user_id'])
+    transfer = get_transfer(transfer_id)
     transfer['status'] = 'upload_complete'
+    coll = get_collection('transfers')
     coll.save(transfer)
+    
+    download_url = S3_MANAGER.get_download_url(str(transfer['install_id']), 
+                                                    transfer['file_hash'],
+                                                    transfer['file']['name'],
+                                                    DOWNLOAD_TIME_LIMIT)
+    send_file_received_email(user, transfer, download_url, '24 Hours')
     return dumps({'status': 'OK'})
-        
+
+
 @app.route("/transfer/<transfer_id>/download")
 def transfer_page(transfer_id):
     transfer = get_transfer(transfer_id)
     if transfer:
         return redirect(S3_MANAGER.get_download_url(str(transfer['install_id']), 
                                                     transfer['file_hash'],
+                                                    transfer['file']['name'],
                                                     DOWNLOAD_TIME_LIMIT))
     else:
         return dumps({'status': 'error', 'error': 'Transfer not found'})
+
 
 @app.route("/download/<transfer_id>/confirm/<install_id>")
 def confirm_transfer(transfer_id, install_id):
