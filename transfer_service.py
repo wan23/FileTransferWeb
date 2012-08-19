@@ -228,7 +228,7 @@ def create_transfer():
     transfer_id = ObjectId()
     transfer = {'_id': transfer_id, 'file_hash': file_hash,
     		    'install_id': ObjectId(install_id),
-    	        'created': datetime.now(), 'status': 'new', 
+    	        'created': datetime.utcnow(), 'status': 'new', 
     	        'user_id': install.get('user_id'),
     	        'file': file,
     	        'recipient_email': recipient_email,
