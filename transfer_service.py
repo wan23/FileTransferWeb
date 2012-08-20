@@ -12,6 +12,7 @@ from hashlib import md5
 from emailsender import send_file_received_email
 
 app = Flask(__name__)
+
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
 #MONGO_HOST = os.environ.get("MONGO_HOST")
 DB = os.environ.get("MONGO_DB", "file_transfer")
@@ -21,13 +22,11 @@ DEFAULT_PORT = 13463
 UPLOAD_TIME_LIMIT = 60 * 60 * 24
 DOWNLOAD_TIME_LIMIT = 60 * 60 * 24
 S3_MANAGER = S3Manager()
+
+
 def get_collection(name):
     db = connection[DB]
     return db[name]
-
-@app.route("/")
-def welcome():
-    return "Welcome! (TODO: make this page)"
 
     
 def update_last_seen(install_id, remote_host):
@@ -45,7 +44,8 @@ def ping(install_id):
     ret = {'status': "OK"}
     
     if transfers:
-    	files = [{'transfer_id': str(t['_id']), 'file_hash': t['file_hash']} for t in transfers]
+    	files = [{'transfer_id': str(t['_id']), 'file_hash': t['file_hash']} 
+    	         for t in transfers]
     	ret.update({'command': 'get_file', 'transfers': files})
     else:
     	ret.update({'command': 'test'})
@@ -250,10 +250,7 @@ def transfer_done(transfer_id):
     coll = get_collection('transfers')
     coll.save(transfer)
     
-    download_url = S3_MANAGER.get_download_url(str(transfer['install_id']), 
-                                                    transfer['file_hash'],
-                                                    transfer['file']['name'],
-                                                    DOWNLOAD_TIME_LIMIT)
+    download_url = S3_MANAGER.get_download_url(transfer, DOWNLOAD_TIME_LIMIT)
     send_file_received_email(user, transfer, download_url, '24 Hours')
     return dumps({'status': 'OK'})
 
@@ -262,23 +259,35 @@ def transfer_done(transfer_id):
 def transfer_page(transfer_id):
     transfer = get_transfer(transfer_id)
     if transfer:
-        return redirect(S3_MANAGER.get_download_url(str(transfer['install_id']), 
-                                                    transfer['file_hash'],
-                                                    transfer['file']['name'],
-                                                    DOWNLOAD_TIME_LIMIT))
+        return redirect(S3_MANAGER.get_download_url(transfer, DOWNLOAD_TIME_LIMIT))
     else:
         return dumps({'status': 'error', 'error': 'Transfer not found'})
 
+#########################################################
+# App routes 
+# TODO: move to another file
+from jinja2 import Environment, PackageLoader
+env = Environment(loader=PackageLoader('transfer_service', './templates'))
 
-@app.route("/download/<transfer_id>/confirm/<install_id>")
-def confirm_transfer(transfer_id, install_id):
-    transfer = get_transfer(transfer_id)
-    if transfer['install_id'] != install_id:
-        return dumps({'error': 'Not authorized'})
-    if transfer:
-        return dumps(transfer)
-    else:
-        return dumps({'error': 'Transfer not found'})
+from flask import session
+
+home_page_template = env.get_template('home_page.html')
+
+@app.route("/")
+def home_page():
+    return home_page_template.render()
+
+@app.route("/login", methods=['POST'])
+def login_handler():
+# TODO: De-dupe with other login function
+    coll = get_collection('users')
+    # TODO: escape items sent to DB
+    user = coll.find_one({'username': request.form.get('username'),
+                          'password': request.form.get('password')})
+    if user:
+    	session['user_token'] = user['token']
+        return dumps({'status': 'OK'})        
+    return dumps({'status': 'Error', 'error': "User not found"})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", DEFAULT_PORT))

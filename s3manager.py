@@ -19,7 +19,7 @@ class S3Manager:
 
   def get_upload_url(self, transfer, expires):
     print transfer
-    k = self.get_key(str(transfer['install_id']), transfer['file_hash'])
+    k = self.get_key(str(transfer['user_id']), transfer['file_hash'])
     headers = None
     if transfer['file']['mime_type']:
     	headers = {'Content-Type':  transfer['file']['mime_type'],
@@ -28,7 +28,10 @@ class S3Manager:
     	print headers
     return k.generate_url(expires, method='PUT', headers=headers)
 
-  def get_download_url(self, install_id, file_hash, file_name, expires):
+  def get_download_url(self, transfer, expires):
+    user_id = str(transfer['user_id'])
+    file_hash = transfer['file_hash']
+    file_name = transfer['file']['name'],
     k = self.get_key(install_id, file_hash)
     headers = {}
     return k.generate_url(expires, method='GET', headers=headers)
