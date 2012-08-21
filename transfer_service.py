@@ -14,7 +14,6 @@ from emailsender import send_file_received_email
 app = Flask(__name__)
 
 MONGO_HOST = os.environ.get("MONGOLAB_URI")
-#MONGO_HOST = os.environ.get("MONGO_HOST")
 DB = os.environ.get("MONGO_DB", "file_transfer")
 connection = Connection(host=MONGO_HOST)
 CONFIG_FILE = "./config.json"
@@ -84,6 +83,14 @@ def logged_in_user():
     user = coll.find_one({'token': request.form['user_token']})
     return user
 
+def error_response(error_text):
+    return dumps({'status': 'error', 'error': error_text))
+
+def ok_response(data={}):
+    response = {'status': 'OK'}
+    response.update(data)
+    return dumps(response)
+
 @app.route("/install/register", methods=["POST"])
 def register_install():
     # TODO: Validate input
@@ -107,7 +114,7 @@ def handle_file_list(install_id):
     # TODO: Validate input
     user = logged_in_user()
     if not user:
-        return dumps({'status': 'error', 'error': "Need to login"})
+        return error_response("Need to login")
     
     listing = loads(request.form['file_list'])
     install = get_install(install_id)
@@ -143,11 +150,17 @@ def test_install_accessible(install):
         
         
 @app.route("/user/login", methods=["POST"])
+def login_user():
+    # TODO: Verify form parameters
+    username = request.form.get('username')
+    password = request.form.get('password')
+    return login(username, password)
+
 def login():
     coll = get_collection('users')
     # TODO: escape items sent to DB
-    user = coll.find_one({'username': request.form.get('username'),
-                          'password': request.form.get('password')})
+    user = coll.find_one({'username': username,
+                          'password': password})
     if user:
         return dumps({'user_token': user['token']})        
     return dumps({'error': "User not found"})
@@ -161,28 +174,27 @@ def user_token(username, password):
 
 @app.route("/user/new", methods=["POST"])
 def new_user():
-#    try:
-        coll = get_collection('users')
-        # TODO: Escape items sent to DB
-        user = coll.find_one({'username': request.form.get('username')})
-        if user:
-            return dumps({"error": "Username already taken"})
-        # TODO: Verify form parameters
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if username and password:
-            user = {'username': username,
-                    'password': password,
-                    'token': user_token(username, password)
-                    }
-            coll.insert(user)
-        else:
-            return "Unable to create user"
-        return dumps({'user_token': user['token']}) 
-#    except Exception as e:
-#        msg = "Exception! " + str(e)
-#        print msg
-#        return msg
+    # TODO: Verify form parameters
+    username = request.form.get('username')
+    password = request.form.get('password')
+    return create_user(username, password)
+    
+def create_user(username, password):
+    coll = get_collection('users')
+    # TODO: Escape items sent to DB
+    user = coll.find_one({'username': request.form.get('username')})
+    if user:
+        return dumps({"error": "Username already taken"})
+
+    if username and password:
+        user = {'username': username,
+                'password': password,
+                'token': user_token(username, password)
+                }
+        coll.insert(user)
+    else:
+        return "Unable to create user"
+    return dumps({'user_token': user['token']}) 
     
 @app.route("/transfer/<transfer_id>/status")
 def status(transfer_id):
@@ -272,22 +284,46 @@ env = Environment(loader=PackageLoader('transfer_service', './templates'))
 from flask import session
 
 home_page_template = env.get_template('home_page.html')
+send_file_template = env.get_template('send_file_template.html')
 
 @app.route("/")
 def home_page():
     return home_page_template.render()
 
+@app.route("/login", methods=['GET'])
+def login_handler():
+    # TODO: Return to the page you were on after logging in
+    return home_page_template.render()
+
+@app.route("/sendfile", methods=['GET'])
+def login_handler():
+    return send_file_template.render()
+
 @app.route("/login", methods=['POST'])
 def login_handler():
-# TODO: De-dupe with other login function
-    coll = get_collection('users')
-    # TODO: escape items sent to DB
-    user = coll.find_one({'username': request.form.get('username'),
-                          'password': request.form.get('password')})
-    if user:
-    	session['user_token'] = user['token']
-        return dumps({'status': 'OK'})        
-    return dumps({'status': 'Error', 'error': "User not found"})
+    username = request.form.get('username')
+    password = request.form.get('password')
+    status = login_user(username, password)
+    if status.get('user_token'):
+        session['user_token'] = status['user_token']
+    return ok_response()
+
+@app.route("/register", methods=['POST'])
+def login_handler():
+    # TODO: Validate this stuff??
+    username = request.form.get('username')
+    password = request.form.get('password')
+    first_name = request.form.get('first_name')
+    last_name = request.form.get('last_name')
+    email = request.form.get('email')
+    status = create_user(username, password, first_name, last_name, email)
+    if status.get('user_token'):
+        session['user_token'] = status['user_token']
+        return ok_response()
+    else:
+        return error_response('Could not create user')
+
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", DEFAULT_PORT))

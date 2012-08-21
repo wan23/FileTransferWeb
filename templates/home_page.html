@@ -8,21 +8,37 @@ Welcome to SendFilesEasy.com
 <br>
 <br>
 <p>
-<form name='login' action='/login' method='post'>
-<label for="username">Username</label>
-<input type='text' name='username'>
-<br>
-<label for="password">Password</label>
-<input type='password' name='password'>
-<br>
-<input type='submit' value='Submit'>
-</form>
+    <form name='login' action='/login' method='post'>
+        <label for="username">Username</label>
+        <input type='text' name='username'/>
+        <br>
+        <label for="password">Password</label>
+        <input type='password' name='password'/>
+        <br>
+        <input type='submit' value='Submit'/>
+    </form>
+
 </p>
 <p>
 Or create an account:
-<form>
-
-</form>
+    <form name='login' action='/register' method='post'>
+        <label for="username">Username</label>
+        <input type='text' name='username'/>
+        <br>
+        <label for="password">Password</label>
+        <input type='password' name='password'/>
+        <br>
+        <label for="first_name">First Name</label>
+        <input type='text' name='first_name'/>
+        <br>
+        <label for="last_name">Last Name</label>
+        <input type='text' name='last_name'/>
+        <br>
+        <label for="email">Email</label>
+        <input type='text' name='email'/>
+        <br>
+        <input type='submit' value='Submit'/>
+    </form>
 </p>
 </body>
 </html>
