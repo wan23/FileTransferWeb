@@ -84,7 +84,7 @@ def logged_in_user():
     return user
 
 def error_response(error_text):
-    return dumps({'status': 'error', 'error': error_text))
+    return dumps({'status': 'error', 'error': error_text})
 
 def ok_response(data={}):
     response = {'status': 'OK'}
